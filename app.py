@@ -2,33 +2,34 @@ from fastapi import FastAPI, Query
 from fastapi.responses import FileResponse, JSONResponse
 import yt_dlp
 import os
-import uuid
+import glob
 
-app = FastAPI(title="Music Downloader API")
+app = FastAPI()
 
 DOWNLOAD_DIR = "downloads"
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
-@app.get("/")
-def root():
-    return {"status": "ok", "message": "Music Downloader Backend running"}
-
 @app.get("/download")
 def download(
-    query: str = Query(..., description="Artist - Title or URL"),
-    format: str = "mp3",
-    quality: str = "192"
+    query: str = Query(...),
+    format: str = "best"
 ):
-    file_id = str(uuid.uuid4())
-    output_template = f"{DOWNLOAD_DIR}/{file_id}.%(ext)s"
+    outtmpl = f"{DOWNLOAD_DIR}/%(artist|uploader)s - %(title)s.%(ext)s"
+
+    # FORMAT LOGIC (NO RE-ENCODE)
+    if format == "opus":
+        ytdlp_format = "bestaudio[ext=opus]/bestaudio"
+    elif format == "m4a":
+        ytdlp_format = "bestaudio[ext=m4a]/bestaudio"
+    else:
+        ytdlp_format = "bestaudio/best"
 
     ydl_opts = {
-        "format": "bestaudio/best",
-        "outtmpl": output_template,
+        "format": ytdlp_format,
+        "outtmpl": outtmpl,
 
-        # FIX YOUTUBE / YT MUSIC
+        # YouTube / YT Music FIX
         "geo_bypass": True,
-        "nocheckcertificate": True,
         "quiet": True,
         "extractor_args": {
             "youtube": {
@@ -36,28 +37,23 @@ def download(
             }
         },
 
-        # Metadata & cover
+        # METADATA
         "addmetadata": True,
         "embedmetadata": True,
         "writethumbnail": True,
         "embedthumbnail": True,
-    }
 
-    # Postprocessing
-    if format == "flac":
-        ydl_opts["postprocessors"] = [
-            {"key": "FFmpegExtractAudio", "preferredcodec": "flac"}
-        ]
-    else:
-        ydl_opts["postprocessors"] = [
+        # REMUX ONLY (NO CONVERT)
+        "postprocessors": [
+            {"key": "FFmpegMetadata"},
             {
-                "key": "FFmpegExtractAudio",
-                "preferredcodec": format,
-                "preferredquality": quality,
+                "key": "FFmpegThumbnailsConvertor",
+                "format": "jpg"
             }
         ]
+    }
 
-    # SEARCH MODE (ANTI ERROR)
+    # SEARCH MODE (STABIL)
     if not query.startswith("http"):
         query = f"ytsearch1:{query}"
 
@@ -65,16 +61,17 @@ def download(
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([query])
 
-        # Cari file hasil download
-        for file in os.listdir(DOWNLOAD_DIR):
-            if file.startswith(file_id):
-                return FileResponse(
-                    path=f"{DOWNLOAD_DIR}/{file}",
-                    filename=file,
-                    media_type="application/octet-stream"
-                )
+        files = sorted(
+            glob.glob(f"{DOWNLOAD_DIR}/*"),
+            key=os.path.getmtime,
+            reverse=True
+        )
 
-        return JSONResponse({"error": "File not found"}, status_code=500)
+        return FileResponse(
+            files[0],
+            filename=os.path.basename(files[0]),
+            media_type="application/octet-stream"
+        )
 
     except Exception as e:
         return JSONResponse({"error": str(e)}, status_code=500)

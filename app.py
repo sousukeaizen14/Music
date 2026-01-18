@@ -19,7 +19,7 @@ def ui():
         return f.read()
 
 @app.get("/download")
-def download(query: str = Query(...), format: str = "m4a"):
+def download(query: str = Query(...), format: str = "mp3"):
     outtmpl = f"{DOWNLOAD_DIR}/%(artist|uploader)s - %(title)s.%(ext)s"
 
     ytdlp_format = "bestaudio[ext=opus]/bestaudio"

@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<title>Music Downloader</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<style>
+body {
+  font-family: system-ui, sans-serif;
+  background: #020617;
+  color: #e5e7eb;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  margin: 0;
+}
+.box {
+  width: 100%;
+  max-width: 420px;
+  background: #020617;
+  padding: 28px;
+  border-radius: 16px;
+  box-shadow: 0 20px 40px rgba(0,0,0,.6);
+}
+input, button {
+  width: 100%;
+  padding: 14px;
+  border-radius: 10px;
+  border: none;
+  margin-top: 12px;
+}
+button {
+  background: #22c55e;
+  font-weight: bold;
+  cursor: pointer;
+}
+button:hover {
+  background: #16a34a;
+}
+small {
+  display: block;
+  margin-top: 10px;
+  opacity: .6;
+  text-align: center;
+}
+</style>
+</head>
+
+<body>
+<div class="box">
+  <h2>🎵 Music Downloader</h2>
+  <p>Link lagu / Artist - Judul</p>
+
+  <input id="q" placeholder="Ado - Usseewa">
+  <button onclick="go()">Download (Highest Quality)</button>
+
+  <small>YouTube / YouTube Music</small>
+</div>
+
+<script>
+function go() {
+  const q = document.getElementById("q").value.trim();
+  if (!q) return alert("Masukkan lagu!");
+
+  window.location.href =
+    `/download?query=${encodeURIComponent(q)}&format=opus`;
+}
+</script>
+</body>
+</html>

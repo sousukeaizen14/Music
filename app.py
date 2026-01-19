@@ -1,6 +1,5 @@
 from fastapi import FastAPI, Query
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
-from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse, JSONResponse
 import yt_dlp
 import os
 import glob
@@ -10,66 +9,48 @@ app = FastAPI()
 DOWNLOAD_DIR = "downloads"
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
-# Serve static UI
-app.mount("/static", StaticFiles(directory="static"), name="static")
+TIDAL_USER = os.getenv("TIDAL_USERNAME")
+TIDAL_PASS = os.getenv("TIDAL_PASSWORD")
 
-@app.get("/", response_class=HTMLResponse)
-def ui():
-    with open("static/index.html", encoding="utf-8") as f:
-        return f.read()
-
-@app.get("/download")
-def download(query: str = Query(...)):
-    outtmpl = f"{DOWNLOAD_DIR}/%(artist|uploader)s - %(title)s.%(ext)s"
+@app.get("/download/tidal")
+def download_tidal(url: str = Query(...)):
+    if not TIDAL_USER or not TIDAL_PASS:
+        return JSONResponse(
+            {"error": "TIDAL credentials not set"},
+            status_code=500
+        )
 
     ydl_opts = {
-        # Ambil audio terbaik dulu
-        "format": "bestaudio/best",
-        "outtmpl": outtmpl,
+        # 👉 FLAC ASLI (TIDAK CONVERT)
+        "format": "bestaudio[acodec=flac]/bestaudio",
 
-        # FIX YouTube Music
-        "extractor_args": {
-            "youtube": {
-                "player_client": ["android"]
-            }
-        },
+        "outtmpl": f"{DOWNLOAD_DIR}/%(artist)s - %(title)s.%(ext)s",
 
-        "geo_bypass": True,
+        # 👉 LOGIN TIDAL
+        "username": TIDAL_USER,
+        "password": TIDAL_PASS,
 
-        # Metadata & cover
+        # 👉 METADATA
         "addmetadata": True,
         "embedmetadata": True,
         "writethumbnail": True,
         "embedthumbnail": True,
 
-        # Convert ke MP3 320 kbps
+        # 👉 NO CONVERSION
         "postprocessors": [
-            {
-                "key": "FFmpegExtractAudio",
-                "preferredcodec": "mp3",
-                "preferredquality": "320",
-            },
-            {
-                "key": "FFmpegMetadata"
-            },
-            {
-                "key": "EmbedThumbnail"
-            }
+            {"key": "FFmpegMetadata"},
+            {"key": "EmbedThumbnail"}
         ],
 
         "quiet": True
     }
 
-    # Kalau bukan URL → search otomatis
-    if not query.startswith("http"):
-        query = f"ytsearch1:{query}"
-
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            ydl.download([query])
+            ydl.download([url])
 
         files = sorted(
-            glob.glob(f"{DOWNLOAD_DIR}/*.mp3"),
+            glob.glob(f"{DOWNLOAD_DIR}/*.flac"),
             key=os.path.getmtime,
             reverse=True
         )
@@ -77,7 +58,7 @@ def download(query: str = Query(...)):
         return FileResponse(
             files[0],
             filename=os.path.basename(files[0]),
-            media_type="audio/mpeg"
+            media_type="audio/flac"
         )
 
     except Exception as e:
